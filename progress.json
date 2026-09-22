@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-22T08:02:30.704Z",
+  "source": "WPS业务场景交付每日进度跟踪表",
+  "groups": [
+    {
+      "name": "通用-费用薪酬组",
+      "actual": 107,
+      "updatedAt": "2026-09-22",
+      "note": ""
+    },
+    {
+      "name": "通用-税务核算组",
+      "actual": null,
+      "updatedAt": "",
+      "note": ""
+    },
+    {
+      "name": "通用-应付结算组",
+      "actual": null,
+      "updatedAt": "",
+      "note": "另有12个交付时间待定"
+    },
+    {
+      "name": "通用-应收收入组",
+      "actual": null,
+      "updatedAt": "",
+      "note": ""
+    },
+    {
+      "name": "通用-资产组",
+      "actual": null,
+      "updatedAt": "",
+      "note": ""
+    },
+    {
+      "name": "通用-总账报表档案组",
+      "actual": null,
+      "updatedAt": "",
+      "note": "另有14个交付时间待定"
+    },
+    {
+      "name": "施工行业",
+      "actual": null,
+      "updatedAt": "",
+      "note": "待确认交付数量及批次"
+    },
+    {
+      "name": "设计行业",
+      "actual": null,
+      "updatedAt": "",
+      "note": ""
+    },
+    {
+      "name": "电商行业",
+      "actual": null,
+      "updatedAt": "",
+      "note": "待确认交付数量及批次"
+    },
+    {
+      "name": "地产行业",
+      "actual": null,
+      "updatedAt": "",
+      "note": "待确认交付数量及批次"
+    },
+    {
+      "name": "物业行业",
+      "actual": null,
+      "updatedAt": "",
+      "note": "待确认交付数量及批次"
+    },
+    {
+      "name": "投资行业",
+      "actual": null,
+      "updatedAt": "",
+      "note": "待确认交付数量及批次"
+    },
+    {
+      "name": "制造行业",
+      "actual": null,
+      "updatedAt": "",
+      "note": "待确认交付数量及批次"
+    }
+  ]
+}
