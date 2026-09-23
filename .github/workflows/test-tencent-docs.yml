@@ -21,7 +21,7 @@ jobs:
           npm init -y
           npm install @modelcontextprotocol/client
 
-      - name: Test Tencent Docs connection
+      - name: Check Tencent Docs structure
         env:
           TENCENT_DOCS_TOKEN: ${{ secrets.TENCENT_DOCS_TOKEN }}
         run: |
@@ -32,10 +32,6 @@ jobs:
           } from "@modelcontextprotocol/client";
 
           const token = process.env.TENCENT_DOCS_TOKEN;
-
-          if (!token) {
-            throw new Error("TENCENT_DOCS_TOKEN is missing");
-          }
 
           const client = new Client({
             name: "business-scene-progress",
@@ -55,15 +51,6 @@ jobs:
 
           await client.connect(transport);
 
-          const toolList = await client.listTools();
-          const toolNames = toolList.tools.map(t => t.name);
-
-          console.log("Tencent Docs MCP connected.");
-          console.log(
-            "get_content available:",
-            toolNames.includes("get_content")
-          );
-
           const result = await client.callTool({
             name: "get_content",
             arguments: {
@@ -79,9 +66,55 @@ jobs:
             .filter(item => item.type === "text")
             .map(item => item.text || "");
 
-          console.log("Tencent document read successfully.");
-          console.log("Text blocks:", texts.length);
-          console.log("Total characters:", texts.join("").length);
+          const fullText = texts.join("\n");
+          const lines = fullText
+            .split(/\r?\n/)
+            .map(x => x.trim())
+            .filter(Boolean);
+
+          console.log("Tencent Docs connected successfully.");
+          console.log("Total characters:", fullText.length);
+          console.log("Total non-empty lines:", lines.length);
+          console.log("Pipe-style lines:", lines.filter(x => x.includes("|")).length);
+          console.log("Tab-style lines:", lines.filter(x => x.includes("\t")).length);
+
+          const keywords = [
+            "一级目录",
+            "二级目录",
+            "三级目录",
+            "业务场景",
+            "批次",
+            "费用薪酬",
+            "应付结算",
+            "应收收入",
+            "资产",
+            "税务",
+            "总账",
+            "设计",
+            "电商"
+          ];
+
+          console.log("===== Keyword check =====");
+
+          for (const keyword of keywords) {
+            console.log(
+              keyword + ":",
+              fullText.includes(keyword) ? "YES" : "NO"
+            );
+          }
+
+          const headerCandidates = lines.filter(line =>
+            line.includes("一级目录") ||
+            line.includes("二级目录") ||
+            line.includes("三级目录") ||
+            line.includes("业务场景")
+          );
+
+          console.log("Header candidate count:", headerCandidates.length);
+
+          headerCandidates.slice(0, 10).forEach((line, index) => {
+            console.log(`Header ${index + 1}:`, line);
+          });
 
           await client.close();
           EOF
