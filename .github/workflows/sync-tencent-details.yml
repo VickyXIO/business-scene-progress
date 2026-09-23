@@ -430,14 +430,23 @@ jobs:
             throw new Error(`Safety stop: target sheet not found: ${name}`);
           });
 
-          // 2) Read the full used range of each target sheet as CSV.
+          // 2) Read each target sheet as CSV.
+          // Tencent Docs currently returns only the first row when the optional range
+          // arguments are omitted, so request a deliberately generous range.
+          // The current workbook is well below these limits; blank trailing cells/rows
+          // are harmless because the parser ignores empty records.
+          const READ_END_ROW = 3000;
+          const READ_END_COL = 50;
+
           const allRecords = [];
           for (const sheet of selected) {
-            // start/end rows and columns are optional. Omitting them asks Tencent Docs
-            // for the full used range of the sub-sheet, avoiding off-by-one issues.
             const args = {
               file_id: FILE_ID,
               sheet_id: sheet.id,
+              start_row: 0,
+              end_row: READ_END_ROW,
+              start_col: 0,
+              end_col: READ_END_COL,
               return_csv: true
             };
 
