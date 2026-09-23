@@ -1,0 +1,67 @@
+name: Inspect Tencent Sheet Tools
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install MCP client
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install @modelcontextprotocol/client >/dev/null 2>&1
+
+      - name: Inspect sheet tool schemas
+        env:
+          TENCENT_DOCS_TOKEN: ${{ secrets.TENCENT_DOCS_TOKEN }}
+        run: |
+          cat > inspect.mjs <<'EOF'
+          import {
+            Client,
+            StreamableHTTPClientTransport
+          } from "@modelcontextprotocol/client";
+
+          const token = process.env.TENCENT_DOCS_TOKEN;
+          if (!token) throw new Error("TENCENT_DOCS_TOKEN is missing");
+
+          const client = new Client({
+            name: "business-scene-progress-inspect",
+            version: "1.0.0"
+          });
+
+          const transport = new StreamableHTTPClientTransport(
+            new URL("https://docs.qq.com/openapi/mcp"),
+            { requestInit: { headers: { Authorization: token } } }
+          );
+
+          await client.connect(transport);
+          const list = await client.listTools();
+
+          const names = [
+            "sheet.get_sheet_info",
+            "sheet.get_cell_data",
+            "sheet.operation_sheet"
+          ];
+
+          for (const name of names) {
+            const tool = list.tools.find(t => t.name === name);
+            console.log(`===== ${name} =====`);
+            if (!tool) {
+              console.log("NOT FOUND");
+              continue;
+            }
+            console.log("Description:", tool.description || "");
+            console.log("Input schema:");
+            console.log(JSON.stringify(tool.inputSchema || {}, null, 2));
+          }
+
+          await client.close();
+          EOF
+
+          node inspect.mjs
