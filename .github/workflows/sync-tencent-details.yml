@@ -1,0 +1,337 @@
+name: Sync Tencent Docs Details
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-tencent-details
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install MCP client
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install @modelcontextprotocol/client >/dev/null 2>&1
+
+      - name: Read Tencent Docs and build details.json
+        env:
+          TENCENT_DOCS_TOKEN: ${{ secrets.TENCENT_DOCS_TOKEN }}
+        run: |
+          cat > sync.mjs <<'EOF'
+          import fs from "node:fs";
+          import {
+            Client,
+            StreamableHTTPClientTransport
+          } from "@modelcontextprotocol/client";
+
+          const FILE_ID = "DWGtwaVhPcVVlVGRW";
+          const SOURCE_URL = "https://docs.qq.com/sheet/DWGtwaVhPcVVlVGRW?tab=BB08J2";
+
+          const EXPECTED_GROUPS = [
+            "费用薪酬组",
+            "应付结算组",
+            "应收收入组",
+            "资产组",
+            "税务核算组",
+            "总账报表档案组",
+            "设计组",
+            "电商组"
+          ];
+
+          function normalizeText(v) {
+            return String(v ?? "")
+              .replace(/<br\s*\/?>/gi, " ")
+              .replace(/&nbsp;/gi, " ")
+              .replace(/\\\|/g, "|")
+              .trim();
+          }
+
+          function normalizeGroup(v) {
+            const s = normalizeText(v).replace(/\s+/g, "");
+            if (!s) return "";
+            if (/费用|薪酬/.test(s)) return "费用薪酬组";
+            if (/应付/.test(s)) return "应付结算组";
+            if (/应收/.test(s)) return "应收收入组";
+            if (/资产/.test(s)) return "资产组";
+            if (/税务|税收|税金/.test(s)) return "税务核算组";
+            if (/总账|报表|档案/.test(s)) return "总账报表档案组";
+            if (/设计/.test(s)) return "设计组";
+            if (/电商/.test(s)) return "电商组";
+            return "";
+          }
+
+          function sheetNameForGroup(group) {
+            if (group === "设计组") return "设计行业";
+            if (group === "电商组") return "电商行业";
+            return "通用";
+          }
+
+          function longestString(value) {
+            let best = "";
+            function walk(v) {
+              if (typeof v === "string") {
+                if (v.length > best.length) best = v;
+              } else if (Array.isArray(v)) {
+                v.forEach(walk);
+              } else if (v && typeof v === "object") {
+                Object.values(v).forEach(walk);
+              }
+            }
+            walk(value);
+            return best;
+          }
+
+          function decodeContent(raw) {
+            let text = raw;
+            try {
+              const parsed = JSON.parse(raw);
+              const candidate = longestString(parsed);
+              if (candidate.length > raw.length * 0.3) text = candidate;
+            } catch {}
+
+            return text
+              .replace(/\\r\\n/g, "\n")
+              .replace(/\\n/g, "\n")
+              .replace(/\\t/g, "\t");
+          }
+
+          // Split markdown pipe rows while preserving empty cells and escaped pipes.
+          function splitPipeRow(line) {
+            const cells = [];
+            let cur = "";
+            let escaped = false;
+
+            for (let i = 0; i < line.length; i++) {
+              const ch = line[i];
+              if (escaped) {
+                cur += ch;
+                escaped = false;
+                continue;
+              }
+              if (ch === "\\") {
+                escaped = true;
+                cur += ch;
+                continue;
+              }
+              if (ch === "|") {
+                cells.push(normalizeText(cur));
+                cur = "";
+              } else {
+                cur += ch;
+              }
+            }
+            cells.push(normalizeText(cur));
+
+            if (cells.length && cells[0] === "") cells.shift();
+            if (cells.length && cells[cells.length - 1] === "") cells.pop();
+            return cells;
+          }
+
+          function isMarked(v) {
+            const s = normalizeText(v).replace(/\s+/g, "");
+            return /[✔√✓☑✅]/.test(s) || /^(是|yes|y|1)$/i.test(s);
+          }
+
+          function parseRecords(text) {
+            const lines = text
+              .split(/\r?\n/)
+              .map(x => x.trim())
+              .filter(x => x.startsWith("|") && x.includes("|"));
+
+            const records = [];
+            let header = null;
+            let ctx = {
+              group: "",
+              level1: "",
+              level2: "",
+              level3: "",
+              shared: ""
+            };
+            let autoSerial = 0;
+
+            for (const line of lines) {
+              const cells = splitPipeRow(line);
+              const joined = cells.join("|");
+
+              const isHeader =
+                joined.includes("序号") &&
+                joined.includes("业务场景") &&
+                joined.includes("共享组别");
+
+              if (isHeader) {
+                const find = (keyword) => cells.findIndex(c => c.includes(keyword));
+                header = {
+                  serial: find("序号"),
+                  group: find("共享组别"),
+                  level1: find("一级服务目录"),
+                  level2: find("二级服务目录"),
+                  level3: find("三级服务目录"),
+                  shared: find("是否纳入共享"),
+                  scene: find("业务场景"),
+                  batchStart: find("报送初稿")
+                };
+                ctx = { group: "", level1: "", level2: "", level3: "", shared: "" };
+                continue;
+              }
+
+              if (!header || header.scene < 0) continue;
+
+              // Ignore markdown separator rows and explanatory notes.
+              if (cells.every(c => !c || /^:?-{2,}:?$/.test(c))) continue;
+              if (joined.includes("流程梳理说明")) continue;
+
+              const rawGroup = header.group >= 0 ? cells[header.group] : "";
+              const normalizedGroup = normalizeGroup(rawGroup);
+              if (normalizedGroup) ctx.group = normalizedGroup;
+
+              const readAndFill = (key, idx) => {
+                if (idx < 0) return ctx[key];
+                const value = normalizeText(cells[idx]);
+                if (value) ctx[key] = value;
+                return ctx[key];
+              };
+
+              const level1 = readAndFill("level1", header.level1);
+              const level2 = readAndFill("level2", header.level2);
+              const level3 = readAndFill("level3", header.level3);
+              const shared = readAndFill("shared", header.shared);
+              const scene = normalizeText(cells[header.scene]);
+
+              if (!ctx.group || !scene) continue;
+              if (/^业务场景$/.test(scene)) continue;
+
+              let batch = "待定";
+              if (header.batchStart >= 0) {
+                const batchNames = ["提前批", "第一批", "第二批", "第三批"];
+                for (let i = 0; i < batchNames.length; i++) {
+                  if (isMarked(cells[header.batchStart + i])) {
+                    batch = batchNames[i];
+                    break;
+                  }
+                }
+              }
+
+              autoSerial += 1;
+              const sourceSerial = header.serial >= 0 ? normalizeText(cells[header.serial]) : "";
+
+              records.push({
+                id: `${ctx.group}-${autoSerial}`,
+                group: ctx.group,
+                serial: sourceSerial || String(autoSerial),
+                level1,
+                level2,
+                level3,
+                shared,
+                scene,
+                batch,
+                sheet: sheetNameForGroup(ctx.group)
+              });
+            }
+
+            return records;
+          }
+
+          const token = process.env.TENCENT_DOCS_TOKEN;
+          if (!token) throw new Error("TENCENT_DOCS_TOKEN is missing");
+
+          const client = new Client({
+            name: "business-scene-progress-sync",
+            version: "1.0.0"
+          });
+
+          const transport = new StreamableHTTPClientTransport(
+            new URL("https://docs.qq.com/openapi/mcp"),
+            {
+              requestInit: {
+                headers: { Authorization: token }
+              }
+            }
+          );
+
+          await client.connect(transport);
+
+          const result = await client.callTool({
+            name: "get_content",
+            arguments: { file_id: FILE_ID }
+          });
+
+          if (result.isError) {
+            throw new Error("Tencent Docs get_content returned an error");
+          }
+
+          const raw = (result.content || [])
+            .filter(x => x.type === "text")
+            .map(x => x.text || "")
+            .join("\n");
+
+          const text = decodeContent(raw);
+          const records = parseRecords(text);
+          const groupsFound = [...new Set(records.map(r => r.group))].sort();
+          const missingGroups = EXPECTED_GROUPS.filter(g => !groupsFound.includes(g));
+
+          console.log("Parsed records:", records.length);
+          console.log("Groups found:", groupsFound.join(", "));
+
+          // Safety guard: never replace the current good file with a broken parse.
+          if (records.length < 300) {
+            throw new Error(`Safety stop: only ${records.length} records were parsed.`);
+          }
+          if (missingGroups.length) {
+            throw new Error(`Safety stop: missing groups: ${missingGroups.join(", ")}`);
+          }
+
+          const output = {
+            generatedAt: new Date().toISOString(),
+            source: {
+              type: "tencent-docs",
+              fileId: FILE_ID,
+              url: SOURCE_URL
+            },
+            records
+          };
+
+          fs.writeFileSync(
+            "details.json",
+            JSON.stringify(output, null, 2) + "\n",
+            "utf8"
+          );
+
+          await client.close();
+          EOF
+
+          node sync.mjs
+
+      - name: Commit details.json if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add details.json
+
+          if git diff --cached --quiet; then
+            echo "No details changes. Nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "Sync Tencent Docs details"
+          git pull --rebase origin main
+          git push origin HEAD:main
