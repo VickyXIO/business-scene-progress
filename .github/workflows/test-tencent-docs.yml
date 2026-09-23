@@ -1,0 +1,89 @@
+name: Test Tencent Docs MCP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install MCP client
+        run: |
+          npm init -y
+          npm install @modelcontextprotocol/client
+
+      - name: Test Tencent Docs connection
+        env:
+          TENCENT_DOCS_TOKEN: ${{ secrets.TENCENT_DOCS_TOKEN }}
+        run: |
+          cat > test.mjs <<'EOF'
+          import {
+            Client,
+            StreamableHTTPClientTransport
+          } from "@modelcontextprotocol/client";
+
+          const token = process.env.TENCENT_DOCS_TOKEN;
+
+          if (!token) {
+            throw new Error("TENCENT_DOCS_TOKEN is missing");
+          }
+
+          const client = new Client({
+            name: "business-scene-progress",
+            version: "1.0.0"
+          });
+
+          const transport = new StreamableHTTPClientTransport(
+            new URL("https://docs.qq.com/openapi/mcp"),
+            {
+              requestInit: {
+                headers: {
+                  Authorization: token
+                }
+              }
+            }
+          );
+
+          await client.connect(transport);
+
+          const toolList = await client.listTools();
+          const toolNames = toolList.tools.map(t => t.name);
+
+          console.log("Tencent Docs MCP connected.");
+          console.log(
+            "get_content available:",
+            toolNames.includes("get_content")
+          );
+
+          const result = await client.callTool({
+            name: "get_content",
+            arguments: {
+              file_id: "DWGtwaVhPcVVlVGRW"
+            }
+          });
+
+          if (result.isError) {
+            throw new Error("get_content returned an error");
+          }
+
+          const texts = (result.content || [])
+            .filter(item => item.type === "text")
+            .map(item => item.text || "");
+
+          console.log("Tencent document read successfully.");
+          console.log("Text blocks:", texts.length);
+          console.log("Total characters:", texts.join("").length);
+
+          await client.close();
+          EOF
+
+          node test.mjs
