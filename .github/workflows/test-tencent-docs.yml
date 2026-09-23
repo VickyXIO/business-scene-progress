@@ -1,4 +1,4 @@
-name: Test Tencent Docs MCP
+name: Test Tencent Docs Structure
 
 on:
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
           npm init -y
           npm install @modelcontextprotocol/client
 
-      - name: Check Tencent Docs structure
+      - name: Inspect Tencent Docs
         env:
           TENCENT_DOCS_TOKEN: ${{ secrets.TENCENT_DOCS_TOKEN }}
         run: |
@@ -30,8 +30,6 @@ jobs:
             Client,
             StreamableHTTPClientTransport
           } from "@modelcontextprotocol/client";
-
-          const token = process.env.TENCENT_DOCS_TOKEN;
 
           const client = new Client({
             name: "business-scene-progress",
@@ -43,7 +41,7 @@ jobs:
             {
               requestInit: {
                 headers: {
-                  Authorization: token
+                  Authorization: process.env.TENCENT_DOCS_TOKEN
                 }
               }
             }
@@ -51,6 +49,19 @@ jobs:
 
           await client.connect(transport);
 
+          // 1. 查看实际可用工具
+          const toolList = await client.listTools();
+
+          const relatedTools = toolList.tools
+            .map(t => t.name)
+            .filter(name =>
+              /sheet|excel|range|table|record/i.test(name)
+            );
+
+          console.log("===== Sheet-related tools =====");
+          relatedTools.forEach(x => console.log(x));
+
+          // 2. 读取腾讯文档
           const result = await client.callTool({
             name: "get_content",
             arguments: {
@@ -62,21 +73,58 @@ jobs:
             throw new Error("get_content returned an error");
           }
 
-          const texts = (result.content || [])
-            .filter(item => item.type === "text")
-            .map(item => item.text || "");
+          let raw = (result.content || [])
+            .filter(x => x.type === "text")
+            .map(x => x.text || "")
+            .join("\n");
 
-          const fullText = texts.join("\n");
-          const lines = fullText
+          // 尝试解析 JSON 包装
+          function longestString(value) {
+            let best = "";
+
+            function walk(v) {
+              if (typeof v === "string") {
+                if (v.length > best.length) best = v;
+              } else if (Array.isArray(v)) {
+                v.forEach(walk);
+              } else if (v && typeof v === "object") {
+                Object.values(v).forEach(walk);
+              }
+            }
+
+            walk(value);
+            return best;
+          }
+
+          try {
+            const parsed = JSON.parse(raw);
+            const candidate = longestString(parsed);
+            if (candidate.length > raw.length * 0.3) {
+              raw = candidate;
+            }
+          } catch {}
+
+          // 解开字符串中的转义换行/制表符
+          let text = raw
+            .replace(/\\r\\n/g, "\n")
+            .replace(/\\n/g, "\n")
+            .replace(/\\t/g, "\t");
+
+          const lines = text
             .split(/\r?\n/)
             .map(x => x.trim())
             .filter(Boolean);
 
-          console.log("Tencent Docs connected successfully.");
-          console.log("Total characters:", fullText.length);
-          console.log("Total non-empty lines:", lines.length);
-          console.log("Pipe-style lines:", lines.filter(x => x.includes("|")).length);
-          console.log("Tab-style lines:", lines.filter(x => x.includes("\t")).length);
+          const pipeLines = lines.filter(x => x.includes("|"));
+          const tabLines = lines.filter(x => x.includes("\t"));
+
+          console.log("===== Decoded structure =====");
+          console.log("Characters:", text.length);
+          console.log("Non-empty lines:", lines.length);
+          console.log("Pipe lines:", pipeLines.length);
+          console.log("Tab lines:", tabLines.length);
+
+          console.log("===== Keyword check =====");
 
           const keywords = [
             "一级目录",
@@ -94,26 +142,23 @@ jobs:
             "电商"
           ];
 
-          console.log("===== Keyword check =====");
-
-          for (const keyword of keywords) {
-            console.log(
-              keyword + ":",
-              fullText.includes(keyword) ? "YES" : "NO"
-            );
+          for (const k of keywords) {
+            console.log(k + ":", text.includes(k) ? "YES" : "NO");
           }
 
-          const headerCandidates = lines.filter(line =>
+          // 只打印表头候选，不打印业务明细
+          const headers = lines.filter(line =>
+            line.includes("业务场景") ||
             line.includes("一级目录") ||
             line.includes("二级目录") ||
-            line.includes("三级目录") ||
-            line.includes("业务场景")
+            line.includes("三级目录")
           );
 
-          console.log("Header candidate count:", headerCandidates.length);
+          console.log("===== Header candidates =====");
+          console.log("Count:", headers.length);
 
-          headerCandidates.slice(0, 10).forEach((line, index) => {
-            console.log(`Header ${index + 1}:`, line);
+          headers.slice(0, 10).forEach((x, i) => {
+            console.log(`Header ${i + 1}:`, x.slice(0, 500));
           });
 
           await client.close();
