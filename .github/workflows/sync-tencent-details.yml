@@ -27,17 +27,18 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install MCP client
+      - name: Install dependencies
         run: |
           npm init -y >/dev/null 2>&1
-          npm install @modelcontextprotocol/client >/dev/null 2>&1
+          npm install @modelcontextprotocol/client csv-parse >/dev/null 2>&1
 
-      - name: Read Tencent Docs and build details.json
+      - name: Read Tencent Docs sheets and build details.json
         env:
           TENCENT_DOCS_TOKEN: ${{ secrets.TENCENT_DOCS_TOKEN }}
         run: |
           cat > sync.mjs <<'EOF'
           import fs from "node:fs";
+          import { parse as parseCsv } from "csv-parse/sync";
           import {
             Client,
             StreamableHTTPClientTransport
@@ -45,7 +46,7 @@ jobs:
 
           const FILE_ID = "DWGtwaVhPcVVlVGRW";
           const SOURCE_URL = "https://docs.qq.com/sheet/DWGtwaVhPcVVlVGRW?tab=BB08J2";
-
+          const TARGET_SHEETS = ["通用", "设计行业", "电商行业"];
           const EXPECTED_GROUPS = [
             "费用薪酬组",
             "应付结算组",
@@ -57,263 +58,440 @@ jobs:
             "电商组"
           ];
 
-          function normalizeText(v) {
+          const token = process.env.TENCENT_DOCS_TOKEN;
+          if (!token) throw new Error("TENCENT_DOCS_TOKEN is missing");
+
+          function clean(v) {
             return String(v ?? "")
-              .replace(/<br\s*\/?>/gi, " ")
-              .replace(/&nbsp;/gi, " ")
-              .replace(/\\\|/g, "|")
+              .replace(/\r\n/g, "\n")
+              .replace(/\r/g, "\n")
               .trim();
           }
 
-          function normalizeGroup(v) {
-            const s = normalizeText(v).replace(/\s+/g, "");
-            if (!s) return "";
+          function normalizeGroup(v, sheetName = "") {
+            const s = clean(v).replace(/\s+/g, "");
+            const sheet = clean(sheetName).replace(/\s+/g, "");
+
+            if (sheet.includes("设计") || s.includes("设计")) return "设计组";
+            if (sheet.includes("电商") || /电商|电商集成/.test(s)) return "电商组";
             if (/费用|薪酬/.test(s)) return "费用薪酬组";
             if (/应付/.test(s)) return "应付结算组";
             if (/应收/.test(s)) return "应收收入组";
             if (/资产/.test(s)) return "资产组";
             if (/税务|税收|税金/.test(s)) return "税务核算组";
             if (/总账|报表|档案/.test(s)) return "总账报表档案组";
-            if (/设计/.test(s)) return "设计组";
-            if (/电商/.test(s)) return "电商组";
             return "";
           }
 
-          function sheetNameForGroup(group) {
-            if (group === "设计组") return "设计行业";
-            if (group === "电商组") return "电商行业";
-            return "通用";
+          function classifyBatchHeader(v) {
+            const s = clean(v).replace(/\s+/g, "");
+            if (!s) return "";
+            if (/提前批/.test(s)) return "提前批";
+            if (/9月23日|9\/23/.test(s)) return "第一批";
+            if (/9月28日|9\/28/.test(s)) return "第二批";
+            if (/10月15日|10\/15/.test(s)) return "第三批";
+            return "";
           }
 
-          function longestString(value) {
-            let best = "";
-            function walk(v) {
-              if (typeof v === "string") {
-                if (v.length > best.length) best = v;
-              } else if (Array.isArray(v)) {
-                v.forEach(walk);
-              } else if (v && typeof v === "object") {
-                Object.values(v).forEach(walk);
+          function isMarked(v) {
+            const s = clean(v).replace(/\s+/g, "");
+            return /[✔√✓☑✅]/.test(s) || /^(是|yes|y|1)$/i.test(s);
+          }
+
+          function textBlocks(result) {
+            return (result?.content || [])
+              .filter(x => x?.type === "text")
+              .map(x => x.text || "");
+          }
+
+          function parseMaybeJson(text) {
+            if (typeof text !== "string") return text;
+            let current = text.trim();
+            for (let i = 0; i < 3; i++) {
+              try {
+                const parsed = JSON.parse(current);
+                if (typeof parsed === "string") {
+                  current = parsed.trim();
+                  continue;
+                }
+                return parsed;
+              } catch {
+                return text;
               }
             }
-            walk(value);
-            return best;
+            return current;
           }
 
-          function decodeContent(raw) {
-            let text = raw;
-            try {
-              const parsed = JSON.parse(raw);
-              const candidate = longestString(parsed);
-              if (candidate.length > raw.length * 0.3) text = candidate;
-            } catch {}
+          function extractPayload(result) {
+            const blocks = textBlocks(result);
+            if (!blocks.length) return result;
 
-            return text
+            // Most Tencent Docs MCP tools return JSON inside one text block.
+            for (const block of blocks) {
+              const parsed = parseMaybeJson(block);
+              if (parsed && typeof parsed === "object") return parsed;
+            }
+
+            return blocks.join("\n");
+          }
+
+          function walkObjects(value, out = []) {
+            if (Array.isArray(value)) {
+              for (const item of value) walkObjects(item, out);
+            } else if (value && typeof value === "object") {
+              out.push(value);
+              for (const item of Object.values(value)) walkObjects(item, out);
+            }
+            return out;
+          }
+
+          function pick(obj, names) {
+            for (const name of names) {
+              if (obj && Object.prototype.hasOwnProperty.call(obj, name)) return obj[name];
+            }
+            return undefined;
+          }
+
+          function extractSheetList(result) {
+            const payload = extractPayload(result);
+            const objects = walkObjects(payload);
+            const sheets = [];
+            const seen = new Set();
+
+            for (const obj of objects) {
+              const id = pick(obj, ["sheet_id", "sheetId", "id", "subsheet_id", "subSheetId"]);
+              const name = pick(obj, ["sheet_name", "sheetName", "name", "title"]);
+              if (typeof id !== "string" || typeof name !== "string") continue;
+
+              const key = `${id}::${name}`;
+              if (seen.has(key)) continue;
+
+              const rows = Number(pick(obj, [
+                "used_end_row", "usedEndRow", "used_range_end_row", "usedRangeEndRow",
+                "row_count", "rowCount", "rows", "max_row", "maxRow"
+              ]));
+              const cols = Number(pick(obj, [
+                "used_end_col", "usedEndCol", "used_range_end_col", "usedRangeEndCol",
+                "column_count", "columnCount", "col_count", "colCount", "cols", "max_col", "maxCol"
+              ]));
+
+              sheets.push({
+                id,
+                name: clean(name),
+                rows: Number.isFinite(rows) && rows > 0 ? rows : null,
+                cols: Number.isFinite(cols) && cols > 0 ? cols : null
+              });
+              seen.add(key);
+            }
+
+            return sheets;
+          }
+
+          function findCsvData(value) {
+            if (typeof value === "string") {
+              if (value.includes(",") || value.includes("\n")) return value;
+              return "";
+            }
+            if (Array.isArray(value)) {
+              for (const item of value) {
+                const found = findCsvData(item);
+                if (found) return found;
+              }
+              return "";
+            }
+            if (value && typeof value === "object") {
+              for (const key of ["csv_data", "csvData", "csv", "data"]) {
+                if (typeof value[key] === "string" && value[key].length > 5) return value[key];
+              }
+              for (const item of Object.values(value)) {
+                const found = findCsvData(item);
+                if (found) return found;
+              }
+            }
+            return "";
+          }
+
+          function extractCsv(result) {
+            const payload = extractPayload(result);
+            let csv = findCsvData(payload);
+
+            if (!csv) {
+              const blocks = textBlocks(result);
+              csv = blocks.sort((a, b) => b.length - a.length)[0] || "";
+            }
+
+            // Some MCP responses wrap escaped CSV inside a JSON string.
+            const parsed = parseMaybeJson(csv);
+            if (typeof parsed === "string") csv = parsed;
+
+            return csv
               .replace(/\\r\\n/g, "\n")
               .replace(/\\n/g, "\n")
               .replace(/\\t/g, "\t");
           }
 
-          // Split markdown pipe rows while preserving empty cells and escaped pipes.
-          function splitPipeRow(line) {
-            const cells = [];
-            let cur = "";
-            let escaped = false;
+          function parseRows(csvText) {
+            if (!csvText || csvText.length < 5) return [];
+            return parseCsv(csvText, {
+              relax_column_count: true,
+              relax_quotes: true,
+              skip_empty_lines: false
+            }).map(row => row.map(clean));
+          }
 
-            for (let i = 0; i < line.length; i++) {
-              const ch = line[i];
-              if (escaped) {
-                cur += ch;
-                escaped = false;
-                continue;
-              }
-              if (ch === "\\") {
-                escaped = true;
-                cur += ch;
-                continue;
-              }
-              if (ch === "|") {
-                cells.push(normalizeText(cur));
-                cur = "";
-              } else {
-                cur += ch;
+          function locateHeader(rows) {
+            for (let r = 0; r < Math.min(rows.length, 20); r++) {
+              const row = rows[r];
+              const scene = row.findIndex(v => clean(v).includes("业务场景"));
+              const group = row.findIndex(v => clean(v).includes("共享组别"));
+              if (scene >= 0 && group >= 0) {
+                const find = keyword => row.findIndex(v => clean(v).includes(keyword));
+                return {
+                  rowIndex: r,
+                  serial: find("序号"),
+                  group,
+                  level1: find("一级服务目录"),
+                  level2: find("二级服务目录"),
+                  level3: find("三级服务目录"),
+                  shared: find("是否纳入共享"),
+                  scene,
+                  batchStart: find("报送初稿")
+                };
               }
             }
-            cells.push(normalizeText(cur));
-
-            if (cells.length && cells[0] === "") cells.shift();
-            if (cells.length && cells[cells.length - 1] === "") cells.pop();
-            return cells;
+            return null;
           }
 
-          function isMarked(v) {
-            const s = normalizeText(v).replace(/\s+/g, "");
-            return /[✔√✓☑✅]/.test(s) || /^(是|yes|y|1)$/i.test(s);
-          }
+          function parseSheetRecords(sheetName, rows) {
+            const header = locateHeader(rows);
+            if (!header) {
+              throw new Error(`Cannot locate header row in sheet: ${sheetName}`);
+            }
 
-          function parseRecords(text) {
-            const lines = text
-              .split(/\r?\n/)
-              .map(x => x.trim())
-              .filter(x => x.startsWith("|") && x.includes("|"));
+            const batchHeaderRow = rows[header.rowIndex + 1] || [];
+            const batchColumns = [];
 
-            const records = [];
-            let header = null;
-            let ctx = {
-              group: "",
+            for (let c = 0; c < batchHeaderRow.length; c++) {
+              const batch = classifyBatchHeader(batchHeaderRow[c]);
+              if (batch) batchColumns.push({ col: c, batch });
+            }
+
+            // Fallback: if the second header row was not returned cleanly, use the
+            // known batch area starting at “报送初稿”.
+            if (!batchColumns.length && header.batchStart >= 0) {
+              const fallback = sheetName === "通用"
+                ? ["提前批", "第一批", "第二批", "第三批"]
+                : sheetName === "设计行业"
+                  ? ["第二批", "第三批"]
+                  : ["第一批", "第二批", "第三批"];
+              fallback.forEach((batch, i) => batchColumns.push({ col: header.batchStart + i, batch }));
+            }
+
+            const ctx = {
+              group: normalizeGroup("", sheetName),
               level1: "",
               level2: "",
               level3: "",
               shared: ""
             };
-            let autoSerial = 0;
 
-            for (const line of lines) {
-              const cells = splitPipeRow(line);
-              const joined = cells.join("|");
+            const records = [];
+            let localSerial = 0;
 
-              const isHeader =
-                joined.includes("序号") &&
-                joined.includes("业务场景") &&
-                joined.includes("共享组别");
+            for (let r = header.rowIndex + 2; r < rows.length; r++) {
+              const row = rows[r] || [];
+              const rawScene = header.scene >= 0 ? clean(row[header.scene]) : "";
 
-              if (isHeader) {
-                const find = (keyword) => cells.findIndex(c => c.includes(keyword));
-                header = {
-                  serial: find("序号"),
-                  group: find("共享组别"),
-                  level1: find("一级服务目录"),
-                  level2: find("二级服务目录"),
-                  level3: find("三级服务目录"),
-                  shared: find("是否纳入共享"),
-                  scene: find("业务场景"),
-                  batchStart: find("报送初稿")
-                };
-                ctx = { group: "", level1: "", level2: "", level3: "", shared: "" };
-                continue;
-              }
+              // Ignore fully blank lines.
+              if (!row.some(v => clean(v))) continue;
 
-              if (!header || header.scene < 0) continue;
-
-              // Ignore markdown separator rows and explanatory notes.
-              if (cells.every(c => !c || /^:?-{2,}:?$/.test(c))) continue;
-              if (joined.includes("流程梳理说明")) continue;
-
-              const rawGroup = header.group >= 0 ? cells[header.group] : "";
-              const normalizedGroup = normalizeGroup(rawGroup);
+              const rawGroup = header.group >= 0 ? clean(row[header.group]) : "";
+              const normalizedGroup = normalizeGroup(rawGroup, sheetName);
               if (normalizedGroup) ctx.group = normalizedGroup;
 
-              const readAndFill = (key, idx) => {
-                if (idx < 0) return ctx[key];
-                const value = normalizeText(cells[idx]);
-                if (value) ctx[key] = value;
+              const forwardFill = (key, col) => {
+                if (col < 0) return ctx[key];
+                const val = clean(row[col]);
+                if (val) ctx[key] = val;
                 return ctx[key];
               };
 
-              const level1 = readAndFill("level1", header.level1);
-              const level2 = readAndFill("level2", header.level2);
-              const level3 = readAndFill("level3", header.level3);
-              const shared = readAndFill("shared", header.shared);
-              const scene = normalizeText(cells[header.scene]);
+              const level1 = forwardFill("level1", header.level1);
+              const level2 = forwardFill("level2", header.level2);
+              const level3 = forwardFill("level3", header.level3);
+              const shared = forwardFill("shared", header.shared);
 
-              if (!ctx.group || !scene) continue;
-              if (/^业务场景$/.test(scene)) continue;
+              if (!ctx.group || !rawScene || rawScene === "业务场景") continue;
+              if (rawScene.includes("场景没列全")) continue;
 
               let batch = "待定";
-              if (header.batchStart >= 0) {
-                const batchNames = ["提前批", "第一批", "第二批", "第三批"];
-                for (let i = 0; i < batchNames.length; i++) {
-                  if (isMarked(cells[header.batchStart + i])) {
-                    batch = batchNames[i];
-                    break;
-                  }
+              for (const { col, batch: batchName } of batchColumns) {
+                if (isMarked(row[col])) {
+                  batch = batchName;
+                  break;
                 }
               }
 
-              autoSerial += 1;
-              const sourceSerial = header.serial >= 0 ? normalizeText(cells[header.serial]) : "";
+              localSerial += 1;
+              const sourceSerial = header.serial >= 0 ? clean(row[header.serial]) : "";
 
               records.push({
-                id: `${ctx.group}-${autoSerial}`,
+                id: `${sheetName}-${ctx.group}-${localSerial}`,
                 group: ctx.group,
-                serial: sourceSerial || String(autoSerial),
+                serial: sourceSerial || String(localSerial),
                 level1,
                 level2,
                 level3,
                 shared,
-                scene,
+                scene: rawScene,
                 batch,
-                sheet: sheetNameForGroup(ctx.group)
+                sheet: sheetName
               });
             }
 
             return records;
           }
 
-          const token = process.env.TENCENT_DOCS_TOKEN;
-          if (!token) throw new Error("TENCENT_DOCS_TOKEN is missing");
+          function groupCounts(records) {
+            const counts = {};
+            for (const r of records) counts[r.group] = (counts[r.group] || 0) + 1;
+            return counts;
+          }
+
+          function validateAgainstExisting(newRecords) {
+            const foundGroups = [...new Set(newRecords.map(r => r.group))];
+            const missing = EXPECTED_GROUPS.filter(g => !foundGroups.includes(g));
+            if (missing.length) {
+              throw new Error(`Safety stop: missing groups: ${missing.join(", ")}`);
+            }
+
+            if (newRecords.length < 500) {
+              throw new Error(`Safety stop: only ${newRecords.length} records were parsed.`);
+            }
+
+            if (!fs.existsSync("details.json")) return;
+
+            try {
+              const old = JSON.parse(fs.readFileSync("details.json", "utf8"));
+              const oldRecords = Array.isArray(old?.records) ? old.records : [];
+              if (!oldRecords.length) return;
+
+              // Prevent a parser/API regression from wiping most of the current data.
+              if (newRecords.length < oldRecords.length * 0.7) {
+                throw new Error(
+                  `Safety stop: parsed ${newRecords.length} records, below 70% of current ${oldRecords.length}.`
+                );
+              }
+
+              const oldCounts = groupCounts(oldRecords);
+              const newCounts = groupCounts(newRecords);
+              for (const group of EXPECTED_GROUPS) {
+                const before = oldCounts[group] || 0;
+                const after = newCounts[group] || 0;
+                if (before >= 10 && after < before * 0.5) {
+                  throw new Error(
+                    `Safety stop: ${group} dropped from ${before} to ${after} records.`
+                  );
+                }
+              }
+            } catch (err) {
+              if (String(err?.message || err).startsWith("Safety stop:")) throw err;
+              console.log("Existing details.json validation skipped:", err?.message || err);
+            }
+          }
 
           const client = new Client({
             name: "business-scene-progress-sync",
-            version: "1.0.0"
+            version: "2.0.0"
           });
 
           const transport = new StreamableHTTPClientTransport(
             new URL("https://docs.qq.com/openapi/mcp"),
-            {
-              requestInit: {
-                headers: { Authorization: token }
-              }
-            }
+            { requestInit: { headers: { Authorization: token } } }
           );
 
           await client.connect(transport);
 
-          const result = await client.callTool({
-            name: "get_content",
+          // 1) Get all sheet IDs and used sizes.
+          const sheetInfoResult = await client.callTool({
+            name: "sheet.get_sheet_info",
             arguments: { file_id: FILE_ID }
           });
+          if (sheetInfoResult.isError) throw new Error("sheet.get_sheet_info returned an error");
 
-          if (result.isError) {
-            throw new Error("Tencent Docs get_content returned an error");
+          const sheets = extractSheetList(sheetInfoResult);
+          console.log("Sheets discovered:", sheets.map(s => `${s.name}(${s.id})`).join(", "));
+
+          const selected = TARGET_SHEETS.map(name => {
+            const exact = sheets.find(s => s.name === name);
+            if (exact) return exact;
+            const fuzzy = sheets.find(s => s.name.replace(/\s+/g, "").includes(name.replace(/\s+/g, "")));
+            if (fuzzy) return fuzzy;
+            throw new Error(`Safety stop: target sheet not found: ${name}`);
+          });
+
+          // 2) Read the full used range of each target sheet as CSV.
+          const allRecords = [];
+          for (const sheet of selected) {
+            // start/end rows and columns are optional. Omitting them asks Tencent Docs
+            // for the full used range of the sub-sheet, avoiding off-by-one issues.
+            const args = {
+              file_id: FILE_ID,
+              sheet_id: sheet.id,
+              return_csv: true
+            };
+
+            const cellResult = await client.callTool({
+              name: "sheet.get_cell_data",
+              arguments: args
+            });
+            if (cellResult.isError) throw new Error(`sheet.get_cell_data returned an error for ${sheet.name}`);
+
+            const csv = extractCsv(cellResult);
+            const rows = parseRows(csv);
+            console.log(`${sheet.name}: ${rows.length} rows read`);
+
+            const records = parseSheetRecords(sheet.name, rows);
+            console.log(`${sheet.name}: ${records.length} records parsed`);
+            allRecords.push(...records);
           }
 
-          const raw = (result.content || [])
-            .filter(x => x.type === "text")
-            .map(x => x.text || "")
-            .join("\n");
+          const counts = groupCounts(allRecords);
+          console.log("Total parsed records:", allRecords.length);
+          console.log("Group counts:", JSON.stringify(counts));
 
-          const text = decodeContent(raw);
-          const records = parseRecords(text);
-          const groupsFound = [...new Set(records.map(r => r.group))].sort();
-          const missingGroups = EXPECTED_GROUPS.filter(g => !groupsFound.includes(g));
+          validateAgainstExisting(allRecords);
 
-          console.log("Parsed records:", records.length);
-          console.log("Groups found:", groupsFound.join(", "));
-
-          // Safety guard: never replace the current good file with a broken parse.
-          if (records.length < 300) {
-            throw new Error(`Safety stop: only ${records.length} records were parsed.`);
-          }
-          if (missingGroups.length) {
-            throw new Error(`Safety stop: missing groups: ${missingGroups.join(", ")}`);
+          // Do not touch details.json when the business records are unchanged.
+          // This prevents a new Git commit every five minutes just because generatedAt changed.
+          let existingRecords = null;
+          if (fs.existsSync("details.json")) {
+            try {
+              const existing = JSON.parse(fs.readFileSync("details.json", "utf8"));
+              if (Array.isArray(existing?.records)) existingRecords = existing.records;
+            } catch {}
           }
 
-          const output = {
-            generatedAt: new Date().toISOString(),
-            source: {
-              type: "tencent-docs",
-              fileId: FILE_ID,
-              url: SOURCE_URL
-            },
-            records
-          };
+          const unchanged = existingRecords &&
+            JSON.stringify(existingRecords) === JSON.stringify(allRecords);
 
-          fs.writeFileSync(
-            "details.json",
-            JSON.stringify(output, null, 2) + "\n",
-            "utf8"
-          );
+          if (unchanged) {
+            console.log("Tencent Docs records are unchanged; details.json will not be rewritten.");
+          } else {
+            const output = {
+              generatedAt: new Date().toISOString(),
+              source: {
+                name: "腾讯文档业务场景明细",
+                type: "tencent-docs",
+                fileId: FILE_ID,
+                url: SOURCE_URL
+              },
+              records: allRecords
+            };
+
+            fs.writeFileSync("details.json", JSON.stringify(output, null, 2) + "\n", "utf8");
+            console.log("details.json rebuilt from Tencent Docs.");
+          }
 
           await client.close();
           EOF
