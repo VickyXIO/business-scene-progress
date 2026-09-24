@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-24T09:25:18.632Z",
+  "generatedAt": "2026-09-24T10:30:10.542Z",
   "source": "WPS业务场景交付每日进度跟踪表",
   "committedSceneTotal": 710,
   "supplementedSceneTotal": 948,
@@ -34,7 +34,7 @@
       "batch3": 16,
       "pending": 12,
       "actual": 85,
-      "updatedAt": "2026-09-23",
+      "updatedAt": "2026-09-24",
       "note": "另有12个交付时间待定"
     },
     {
@@ -49,8 +49,8 @@
       "batch2": 13,
       "batch3": 0,
       "pending": 0,
-      "actual": 47,
-      "updatedAt": "2026-09-23",
+      "actual": 55,
+      "updatedAt": "2026-09-24",
       "note": ""
     },
     {
@@ -81,8 +81,8 @@
       "batch2": 21,
       "batch3": 32,
       "pending": 0,
-      "actual": 25,
-      "updatedAt": "2026-09-23",
+      "actual": 40,
+      "updatedAt": "2026-09-24",
       "note": ""
     },
     {
@@ -97,8 +97,8 @@
       "batch2": 50,
       "batch3": 14,
       "pending": 14,
-      "actual": 44,
-      "updatedAt": "2026-09-23",
+      "actual": 68,
+      "updatedAt": "2026-09-24",
       "note": "另有14个交付时间待定"
     },
     {
@@ -129,8 +129,8 @@
       "batch2": 121,
       "batch3": 3,
       "pending": 0,
-      "actual": 70,
-      "updatedAt": "2026-09-23",
+      "actual": 104,
+      "updatedAt": "2026-09-24",
       "note": ""
     },
     {
@@ -161,8 +161,8 @@
       "batch2": 98,
       "batch3": 0,
       "pending": 0,
-      "actual": null,
-      "updatedAt": "",
+      "actual": 68,
+      "updatedAt": "2026-09-24",
       "note": ""
     },
     {
@@ -177,8 +177,8 @@
       "batch2": 0,
       "batch3": 38,
       "pending": 0,
-      "actual": null,
-      "updatedAt": "",
+      "actual": 0,
+      "updatedAt": "2026-09-24",
       "note": ""
     },
     {
