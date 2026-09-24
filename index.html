@@ -45,30 +45,30 @@
           </div>
         </div>
         <div class="total-note">承诺交付口径仍按 <strong>710</strong> 个管理；新增梳理场景用于反映当前业务场景清单的最新规模。</div>
-        <div class="advance-tag">✓ 提前批 95 个</div>
+        <div class="advance-tag" id="advanceTotal">✓ 提前批 95 个</div>
       </div>
       <div class="batch-cards">
         <div class="batch-card b1">
           <div class="batch-name">第一批</div>
-          <div class="batch-count"><b>177</b><span>个业务场景</span></div>
+          <div class="batch-count"><b id="batch1Total">177</b><span>个业务场景</span></div>
           <div class="batch-date">9月23日交付</div>
-          <div class="batch-desc">含电商行业</div>
+          <div class="batch-desc" id="batch1Desc">含电商行业</div>
         </div>
         <div class="batch-card b2">
           <div class="batch-name">第二批</div>
-          <div class="batch-count"><b>380</b><span>个业务场景</span></div>
+          <div class="batch-count"><b id="batch2Total">380</b><span>个业务场景</span></div>
           <div class="batch-date">9月28日交付</div>
-          <div class="batch-desc">含设计行业、地产行业</div>
+          <div class="batch-desc" id="batch2Desc">含设计行业、地产行业</div>
         </div>
         <div class="batch-card b3">
           <div class="batch-name">第三批</div>
-          <div class="batch-count"><b>156</b><span>个业务场景</span></div>
+          <div class="batch-count"><b id="batch3Total">156</b><span>个业务场景</span></div>
           <div class="batch-date">10月15日交付</div>
-          <div class="batch-desc">含设计行业、物业行业</div>
+          <div class="batch-desc" id="batch3Desc">含设计行业、物业行业</div>
         </div>
       </div>
     </div>
-    <div class="tbd-note"><div class="lab">交付时间待明确</div><div class="txt"><strong>38个业务场景：</strong>费用薪酬组12个、应付结算组12个、总账报表档案组14个，暂未确定交付时间，需后续明确交付安排。</div></div>
+    <div class="tbd-note"><div class="lab">交付时间待明确</div><div class="txt" id="tbdText"><strong>38个业务场景：</strong>费用薪酬组12个、应付结算组12个、总账报表档案组14个，暂未确定交付时间，需后续明确交付安排。</div></div>
   </section>
 
   <section class="section">
@@ -100,9 +100,11 @@ const PLAN_SUMMARY={
 };
 const PLAN_ORDER=["费用薪酬组","应付结算组","应收收入组","资产组","税务核算组","总账报表档案组","设计组","电商组","地产组","物业组"];
 const PLAN_LABELS={"费用薪酬组":"通用-费用薪酬组","税务核算组":"通用-税务核算组","应付结算组":"通用-应付结算组","应收收入组":"通用-应收收入组","资产组":"通用-资产组","总账报表档案组":"通用-总账报表档案组","设计组":"设计行业","电商组":"电商行业","地产组":"地产行业","物业组":"物业行业"};
-DB.summary=PLAN_SUMMARY;
-DB.order=PLAN_ORDER;
-DB.labels=PLAN_LABELS;
+DB.summary={...PLAN_SUMMARY};
+DB.order=[...PLAN_ORDER];
+DB.labels={...PLAN_LABELS};
+DB.types={};
+DB.sourceOrder={};
 const START=new Date('2026-09-21T00:00:00'); const END=new Date('2026-10-31T00:00:00');
 const MS=[{batch:'第一批',date:'2026-09-23',label:'9/23',cls:'b1'},{batch:'第二批',date:'2026-09-28',label:'9/28',cls:'b2'},{batch:'第三批',date:'2026-10-15',label:'10/15',cls:'b3'}];
 let progress={
@@ -131,21 +133,97 @@ let progressDate={
 };
 let progressMeta={generatedAt:'',latestBusinessDate:'',supplementedSceneTotal:null};
 let drawerState={group:null,batch:'全部',kw:''};
+function normalizeOnlineGroupName(name){
+  const s=String(name||'').trim();
+  const exact={
+    '通用-费用薪酬组':'费用薪酬组',
+    '通用-税务核算组':'税务核算组',
+    '通用-应付结算组':'应付结算组',
+    '通用-应收收入组':'应收收入组',
+    '通用-资产组':'资产组',
+    '通用-总账报表档案组':'总账报表档案组',
+    '设计行业':'设计组',
+    '电商行业':'电商组',
+    '施工行业':'施工组',
+    '地产行业':'地产组',
+    '物业行业':'物业组',
+    '投资行业':'投资组',
+    '制造行业':'制造组'
+  };
+  if(exact[s])return exact[s];
+  if(s.startsWith('通用-'))return s.slice(3);
+  if(s.endsWith('行业'))return s.slice(0,-2)+'组';
+  return s;
+}
+function boolIncluded(v){
+  if(v===true)return true;
+  if(v===false||v===null||v===undefined)return false;
+  const s=String(v).trim().toLowerCase();
+  return s==='是'||s==='true'||s==='1'||s==='yes'||s==='y';
+}
+function numOrZero(v){
+  if(v===null||v===undefined||v==='')return 0;
+  const n=Number(v);return Number.isNaN(n)?0:n;
+}
+function hasOwn(o,k){return Object.prototype.hasOwnProperty.call(o,k)}
+function sortDynamicGroups(groups){
+  const common=['费用薪酬组','应付结算组','应收收入组','资产组','税务核算组','总账报表档案组'];
+  return [...groups].sort((a,b)=>{
+    const ia=common.indexOf(a),ib=common.indexOf(b);
+    if(ia>=0&&ib>=0)return ia-ib;
+    if(ia>=0)return -1;
+    if(ib>=0)return 1;
+    return (Number(DB.sourceOrder[a])||9999)-(Number(DB.sourceOrder[b])||9999);
+  });
+}
 function applyOnlineProgress(data){
   if(!data||!Array.isArray(data.groups))throw new Error('progress.json格式不正确');
-  const byName={};
-  data.groups.forEach(r=>{if(r&&r.name)byName[String(r.name).trim()]=r});
-  DB.order.forEach(g=>{
-    const r=byName[DB.labels[g]]||byName[g];
-    if(r&&r.actual!==null&&r.actual!==undefined&&r.actual!==''&&!Number.isNaN(Number(r.actual))){
+  const mapped=[];
+  data.groups.forEach(r=>{
+    if(!r||!r.name)return;
+    const g=normalizeOnlineGroupName(r.name);
+    if(!g)return;
+    mapped.push({g,r});
+
+    DB.labels[g]=String(r.name).trim();
+    DB.types[g]=r.type||'';
+    DB.sourceOrder[g]=Number(r.order)||9999;
+
+    // 新版AirScript会同步E-K计划数据；若字段存在，就以在线表格为准。
+    const hasPlan=['total','confirmed','early','batch1','batch2','batch3','pending'].some(k=>hasOwn(r,k));
+    if(hasPlan){
+      DB.summary[g]={
+        total:numOrZero(r.total),
+        confirmed:numOrZero(r.confirmed),
+        '提前批':numOrZero(r.early),
+        '第一批':numOrZero(r.batch1),
+        '第二批':numOrZero(r.batch2),
+        '第三批':numOrZero(r.batch3),
+        '待定':numOrZero(r.pending)
+      };
+    }
+
+    if(r.actual!==null&&r.actual!==undefined&&r.actual!==''&&!Number.isNaN(Number(r.actual))){
       const incomingDate=r.updatedAt?String(r.updatedAt).slice(0,10):'';
       const currentDate=progressDate[g]?String(progressDate[g]).slice(0,10):'';
       if(!currentDate||!incomingDate||incomingDate>=currentDate){
         progress[g]=Number(r.actual);
         progressDate[g]=incomingDate;
       }
+    }else if(!hasOwn(progress,g)){
+      progress[g]=null;
+      progressDate[g]='';
     }
   });
+
+  // 只要progress.json已经带included字段，就完全由D列控制网页显示。
+  const hasIncluded=mapped.some(x=>hasOwn(x.r,'included'));
+  if(hasIncluded){
+    const includedGroups=[];
+    mapped.forEach(({g,r})=>{if(boolIncluded(r.included)&&!includedGroups.includes(g))includedGroups.push(g)});
+    DB.order=sortDynamicGroups(includedGroups);
+  }
+
   progressMeta.generatedAt=data.generatedAt||'';
   progressMeta.supplementedSceneTotal=(data.supplementedSceneTotal!==null&&data.supplementedSceneTotal!==undefined&&data.supplementedSceneTotal!==''&&!Number.isNaN(Number(data.supplementedSceneTotal)))?Number(data.supplementedSceneTotal):null;
   const dates=data.groups.map(r=>r&&r.updatedAt?String(r.updatedAt):'').filter(Boolean).sort();
@@ -163,6 +241,38 @@ function updateSupplementedSceneTotal(){
   else if(diff<0)diffEl.textContent=`较承诺口径少 ${Math.abs(diff)} 个`;
   else diffEl.textContent='与承诺交付口径一致';
 }
+function updateDeliveryOverview(){
+  let advance=0,b1=0,b2=0,b3=0,tbd=0;
+  const tbdParts=[];
+  const industryByBatch={'第一批':[],'第二批':[],'第三批':[]};
+  DB.order.forEach(g=>{
+    const x=summary(g);
+    advance+=Number(x['提前批'])||0;
+    b1+=Number(x['第一批'])||0;
+    b2+=Number(x['第二批'])||0;
+    b3+=Number(x['第三批'])||0;
+    const p=Number(x['待定'])||0;
+    if(p>0){tbd+=p;tbdParts.push(`${(DB.labels[g]||g).replace(/^通用-/,'')}${p}个`)}
+    const label=DB.labels[g]||g;
+    if(label.endsWith('行业')){
+      if(Number(x['第一批'])>0)industryByBatch['第一批'].push(label);
+      if(Number(x['第二批'])>0)industryByBatch['第二批'].push(label);
+      if(Number(x['第三批'])>0)industryByBatch['第三批'].push(label);
+    }
+  });
+  const setText=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=String(v)};
+  setText('batch1Total',b1);setText('batch2Total',b2);setText('batch3Total',b3);
+  const adv=document.getElementById('advanceTotal');if(adv)adv.textContent=`✓ 提前批 ${advance} 个`;
+  ['第一批','第二批','第三批'].forEach((batch,i)=>{
+    const el=document.getElementById(`batch${i+1}Desc`);if(!el)return;
+    const arr=industryByBatch[batch];el.textContent=arr.length?`含${arr.join('、')}`:'按业务域计划交付';
+  });
+  const t=document.getElementById('tbdText');
+  if(t){
+    if(tbd>0)t.innerHTML=`<strong>${tbd}个业务场景：</strong>${tbdParts.join('、')}，暂未确定交付时间，需后续明确交付安排。`;
+    else t.innerHTML='<strong>0个业务场景：</strong>当前纳入统计范围内暂无待明确交付时间的业务场景。';
+  }
+}
 function onlineStatusText(){
   if(progressMeta.latestBusinessDate)return `在线进度：已同步至 ${progressMeta.latestBusinessDate}`;
   if(progressMeta.generatedAt){const d=new Date(progressMeta.generatedAt);if(!Number.isNaN(d.getTime()))return `在线进度：${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} 已同步`;}
@@ -177,6 +287,7 @@ async function refreshOnlineProgress(manual=false){
     const data=await resp.json();
     applyOnlineProgress(data);
     updateSupplementedSceneTotal();
+    updateDeliveryOverview();
     render();
     if(status){status.textContent=onlineStatusText();status.style.color='#d9f7e8';}
   }catch(err){
@@ -417,6 +528,7 @@ function openProgress(){refreshOnlineProgress(true)}
 function closeProgress(){document.getElementById('progressModal').classList.remove('show')}
 function saveProgress(){refreshOnlineProgress(true)}
 function initPage(){
+  updateDeliveryOverview();
   render();
   refreshOnlineDetails(false);
   refreshOnlineProgress(false);
