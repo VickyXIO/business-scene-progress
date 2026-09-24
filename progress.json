@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-24T09:00:36.611Z",
+  "generatedAt": "2026-09-24T09:22:56.300Z",
   "source": "WPS业务场景交付每日进度跟踪表",
   "committedSceneTotal": 710,
   "supplementedSceneTotal": 948,
@@ -184,7 +184,7 @@
     {
       "name": "投资行业",
       "type": "行业",
-      "included": false,
+      "included": true,
       "order": 13,
       "total": null,
       "confirmed": null,
