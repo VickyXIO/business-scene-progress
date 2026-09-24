@@ -329,8 +329,16 @@ jobs:
               const level3 = forwardFill("level3", header.level3);
               const shared = forwardFill("shared", header.shared);
 
-              if (!ctx.group || !rawScene || rawScene === "业务场景") continue;
-              if (rawScene.includes("场景没列全")) continue;
+              // 优先使用“业务场景”列；若该Sheet该列为空，
+              // 则依次回退到三级/二级/一级服务目录，确保有明细的行业不会被整表跳过。
+              const sceneValue =
+                rawScene ||
+                level3 ||
+                level2 ||
+                level1;
+
+              if (!ctx.group || !sceneValue || sceneValue === "业务场景") continue;
+              if (sceneValue.includes("场景没列全")) continue;
 
               let batch = "待定";
               for (const { col, batch: batchName } of batchColumns) {
@@ -351,7 +359,7 @@ jobs:
                 level2,
                 level3,
                 shared,
-                scene: rawScene,
+                scene: sceneValue,
                 batch,
                 sheet: sheetName
               });
