@@ -26,7 +26,7 @@
 </style>
 </head>
 <body>
-<div class="topbar"><div class="topbar-in"><div><div class="title">业务场景交付进度图</div><div class="sub">18:00自动更新当日数据 ｜ 点击任一业务域及行业查看对应明细 ｜ <span id="onlineDataStatus">在线进度：加载中</span></div></div><div class="top-actions"><button class="btn" onclick="window.print()">打印/导出PDF</button><button class="btn primary" onclick="refreshOnlineProgress(true)">刷新在线进度</button></div></div></div>
+<div class="topbar"><div class="topbar-in"><div><div class="title">业务场景交付进度图</div><div class="sub">18:30自动更新当日数据 ｜ 点击任一业务域及行业查看对应明细 ｜ <span id="onlineDataStatus">在线进度：加载中</span></div></div><div class="top-actions"><button class="btn" onclick="window.print()">打印/导出PDF</button><button class="btn primary" onclick="refreshOnlineProgress(true)">刷新在线进度</button></div></div></div>
 <div class="main">
   <section class="summary">
     <div class="summary-title">业务场景交付总体安排</div>
@@ -77,7 +77,7 @@
   </section>
 
   <section class="section">
-    <div class="sec-head"><div><div class="sec-title">业务场景交付时间进度</div></div><div class="legend"><span class="leg"><i class="sq b1"></i>9/23 第一批</span><span class="leg"><i class="sq b2"></i>9/28 第二批</span><span class="leg"><i class="sq b3"></i>10/15 第三批</span><span class="leg"><i class="vline-sample"></i>进度截止线（18:00前T-1；18:00起当日）</span></div></div>
+    <div class="sec-head"><div><div class="sec-title">业务场景交付时间进度</div></div><div class="legend"><span class="leg"><i class="sq b1"></i>9/23 第一批</span><span class="leg"><i class="sq b2"></i>9/28 第二批</span><span class="leg"><i class="sq b3"></i>10/15 第三批</span><span class="leg"><i class="vline-sample"></i>进度截止线（18:30前T-1；18:30起当日）</span></div></div>
     <div class="gantt-scroll"><div class="gantt" id="gantt"></div></div>
     <div class="footer-note"><span><strong>查看明细：</strong>点击左侧业务域及行业名称或对应时间行，直接打开对应场景清单。</span><span><strong>进度判断：</strong>实际完成数与红线所在日期的应完成进度比较：≥100%为绿，90%—99%为黄，＜90%为红；进度达成率可超过100%。</span></div>
   </section>
@@ -325,8 +325,8 @@ function getCutoffDate(){
   const now=new Date();
   const d=new Date(now);
   d.setHours(0,0,0,0);
-  // 每日18:00前按T-1判断；18:00起推进至当日日历日期。
-  if(now.getHours()<18){
+  // 每日18:30前按T-1判断；18:30起推进至当日日历日期。
+  if(now.getHours()<18 || (now.getHours()===18 && now.getMinutes()<30)){
     d.setDate(d.getDate()-1);
   }
   return d;
