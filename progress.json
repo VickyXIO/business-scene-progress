@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-25T10:30:10.896Z",
+  "generatedAt": "2026-09-26T10:30:10.681Z",
   "source": "WPS业务场景交付每日进度跟踪表",
   "committedSceneTotal": 710,
-  "supplementedSceneTotal": 975,
+  "supplementedSceneTotal": 1001,
   "groups": [
     {
       "name": "通用-费用薪酬组",
@@ -18,7 +18,7 @@
       "batch3": 0,
       "pending": 12,
       "actual": 95,
-      "updatedAt": "2026-09-25",
+      "updatedAt": "2026-09-26",
       "note": "另有12个交付时间待定"
     },
     {
@@ -33,8 +33,8 @@
       "batch2": 11,
       "batch3": 16,
       "pending": 12,
-      "actual": 90,
-      "updatedAt": "2026-09-25",
+      "actual": 93,
+      "updatedAt": "2026-09-26",
       "note": "另有12个交付时间待定"
     },
     {
@@ -49,8 +49,8 @@
       "batch2": 13,
       "batch3": 0,
       "pending": 0,
-      "actual": 78,
-      "updatedAt": "2026-09-25",
+      "actual": 105,
+      "updatedAt": "2026-09-26",
       "note": ""
     },
     {
@@ -66,7 +66,7 @@
       "batch3": 53,
       "pending": 0,
       "actual": 192,
-      "updatedAt": "2026-09-25",
+      "updatedAt": "2026-09-26",
       "note": ""
     },
     {
@@ -81,8 +81,8 @@
       "batch2": 21,
       "batch3": 32,
       "pending": 0,
-      "actual": 48,
-      "updatedAt": "2026-09-25",
+      "actual": 54,
+      "updatedAt": "2026-09-26",
       "note": ""
     },
     {
@@ -98,7 +98,7 @@
       "batch3": 14,
       "pending": 14,
       "actual": 75,
-      "updatedAt": "2026-09-25",
+      "updatedAt": "2026-09-26",
       "note": "另有14个交付时间待定"
     },
     {
@@ -130,7 +130,7 @@
       "batch3": 3,
       "pending": 0,
       "actual": 104,
-      "updatedAt": "2026-09-25",
+      "updatedAt": "2026-09-26",
       "note": ""
     },
     {
@@ -146,7 +146,7 @@
       "batch3": 0,
       "pending": 0,
       "actual": 29,
-      "updatedAt": "2026-09-25",
+      "updatedAt": "2026-09-26",
       "note": ""
     },
     {
@@ -162,7 +162,7 @@
       "batch3": 0,
       "pending": 0,
       "actual": 71,
-      "updatedAt": "2026-09-25",
+      "updatedAt": "2026-09-26",
       "note": ""
     },
     {
@@ -177,8 +177,8 @@
       "batch2": 0,
       "batch3": 38,
       "pending": 0,
-      "actual": 0,
-      "updatedAt": "2026-09-25",
+      "actual": 28,
+      "updatedAt": "2026-09-26",
       "note": ""
     },
     {
