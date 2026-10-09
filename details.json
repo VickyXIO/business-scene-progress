@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T09:15:11.655Z",
+  "generatedAt": "2026-10-09T02:12:48.097Z",
   "source": {
     "name": "腾讯文档业务场景明细",
     "type": "tencent-docs",
@@ -10020,8 +10020,8 @@
       "group": "设计组",
       "serial": "108",
       "level1": "收入收款管理",
-      "level2": "收入确认",
-      "level3": "收入确认单",
+      "level2": "资金收款",
+      "level3": "收款确认单",
       "shared": "否",
       "scene": "否",
       "batch": "第三批",
