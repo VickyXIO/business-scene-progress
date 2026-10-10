@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-09T10:30:09.922Z",
+  "generatedAt": "2026-10-10T10:00:58.132Z",
   "source": "WPS业务场景交付每日进度跟踪表",
   "committedSceneTotal": 710,
   "supplementedSceneTotal": 1123,
@@ -18,7 +18,7 @@
       "batch3": 0,
       "pending": 12,
       "actual": 95,
-      "updatedAt": "2026-10-09",
+      "updatedAt": "2026-10-10",
       "note": "另有12个交付时间待定"
     },
     {
@@ -34,7 +34,7 @@
       "batch3": 16,
       "pending": 12,
       "actual": 113,
-      "updatedAt": "2026-10-09",
+      "updatedAt": "2026-10-10",
       "note": "另有12个交付时间待定"
     },
     {
@@ -50,7 +50,7 @@
       "batch3": 0,
       "pending": 0,
       "actual": 114,
-      "updatedAt": "2026-10-09",
+      "updatedAt": "2026-10-10",
       "note": ""
     },
     {
@@ -66,7 +66,7 @@
       "batch3": 53,
       "pending": 0,
       "actual": 192,
-      "updatedAt": "2026-10-09",
+      "updatedAt": "2026-10-10",
       "note": ""
     },
     {
@@ -81,8 +81,8 @@
       "batch2": 21,
       "batch3": 32,
       "pending": 0,
-      "actual": 101,
-      "updatedAt": "2026-10-09",
+      "actual": 136,
+      "updatedAt": "2026-10-10",
       "note": ""
     },
     {
@@ -98,7 +98,7 @@
       "batch3": 14,
       "pending": 14,
       "actual": 118,
-      "updatedAt": "2026-10-09",
+      "updatedAt": "2026-10-10",
       "note": "另有14个交付时间待定"
     },
     {
@@ -130,7 +130,7 @@
       "batch3": 3,
       "pending": 0,
       "actual": 110,
-      "updatedAt": "2026-10-09",
+      "updatedAt": "2026-10-10",
       "note": ""
     },
     {
@@ -146,7 +146,7 @@
       "batch3": 0,
       "pending": 0,
       "actual": 29,
-      "updatedAt": "2026-10-09",
+      "updatedAt": "2026-10-10",
       "note": ""
     },
     {
@@ -162,7 +162,7 @@
       "batch3": 0,
       "pending": 0,
       "actual": 94,
-      "updatedAt": "2026-10-09",
+      "updatedAt": "2026-10-10",
       "note": ""
     },
     {
@@ -178,7 +178,7 @@
       "batch3": 38,
       "pending": 0,
       "actual": 50,
-      "updatedAt": "2026-10-09",
+      "updatedAt": "2026-10-10",
       "note": ""
     },
     {
