@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T01:25:08.813Z",
+  "generatedAt": "2026-10-10T01:47:52.633Z",
   "source": {
     "name": "腾讯文档业务场景明细",
     "type": "tencent-docs",
@@ -11258,8 +11258,8 @@
       "level1": "收入收款管理",
       "level2": "资金收款",
       "level3": "收款确认单",
-      "shared": "否",
-      "scene": "否",
+      "shared": "是",
+      "scene": "是",
       "batch": "第三批",
       "sheet": "设计行业"
     },
@@ -11270,8 +11270,8 @@
       "level1": "收入收款管理",
       "level2": "资金收款",
       "level3": "收款确认单",
-      "shared": "否",
-      "scene": "否",
+      "shared": "是",
+      "scene": "是",
       "batch": "第三批",
       "sheet": "设计行业"
     },
