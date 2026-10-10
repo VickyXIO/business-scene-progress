@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T09:31:36.311Z",
+  "generatedAt": "2026-10-10T01:25:08.813Z",
   "source": {
     "name": "腾讯文档业务场景明细",
     "type": "tencent-docs",
@@ -10898,8 +10898,8 @@
       "level1": "应付及付款",
       "level2": "研发支出付款",
       "level3": "对外成本费用付款申请",
-      "shared": "否",
-      "scene": "否",
+      "shared": "是",
+      "scene": "是",
       "batch": "第二批",
       "sheet": "设计行业"
     },
@@ -10934,8 +10934,8 @@
       "level1": "应付及付款",
       "level2": "研发支出付款",
       "level3": "对外成本费用付款申请",
-      "shared": "否",
-      "scene": "否",
+      "shared": "是",
+      "scene": "是",
       "batch": "第二批",
       "sheet": "设计行业"
     },
@@ -11150,8 +11150,8 @@
       "level1": "应付及付款",
       "level2": "研发支出付款",
       "level3": "对外成本费用付款申请",
-      "shared": "否",
-      "scene": "否",
+      "shared": "是",
+      "scene": "是",
       "batch": "第二批",
       "sheet": "设计行业"
     },
