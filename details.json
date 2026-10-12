@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-12T08:53:08.169Z",
+  "generatedAt": "2026-10-12T09:16:35.545Z",
   "source": {
     "name": "腾讯文档业务场景明细",
     "type": "tencent-docs",
@@ -11339,11 +11339,11 @@
       "id": "设计行业-设计组-114",
       "group": "设计组",
       "serial": "114",
-      "level1": "税务管理",
-      "level2": "销项税管理",
-      "level3": "开票申请",
-      "shared": "否",
-      "scene": "否",
+      "level1": "物资及资产管理",
+      "level2": "物资日常业务",
+      "level3": "出库汇总单-通用",
+      "shared": "是",
+      "scene": "是",
       "batch": "第三批",
       "sheet": "设计行业"
     },
