@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-13T09:11:49.238Z",
+  "generatedAt": "2026-10-13T09:39:16.806Z",
   "source": {
     "name": "腾讯文档业务场景明细",
     "type": "tencent-docs",
@@ -9232,7 +9232,7 @@
       "level3": "资产评估类单据（详见资产组）",
       "shared": "否",
       "scene": "否",
-      "batch": "第三批",
+      "batch": "待定",
       "sheet": "通用"
     },
     {
@@ -9244,7 +9244,7 @@
       "level3": "资产处置申请（详见资产组,SAP结转）",
       "shared": "否",
       "scene": "否",
-      "batch": "第三批",
+      "batch": "待定",
       "sheet": "通用"
     },
     {
@@ -9352,7 +9352,7 @@
       "level3": "SAP结转",
       "shared": "否",
       "scene": "否",
-      "batch": "第三批",
+      "batch": "待定",
       "sheet": "通用"
     },
     {
@@ -9376,7 +9376,7 @@
       "level3": "SAP结转",
       "shared": "否",
       "scene": "否",
-      "batch": "第三批",
+      "batch": "待定",
       "sheet": "通用"
     },
     {
@@ -9412,7 +9412,7 @@
       "level3": "SAP成本结转",
       "shared": "否",
       "scene": "否",
-      "batch": "第三批",
+      "batch": "待定",
       "sheet": "通用"
     },
     {
@@ -9700,7 +9700,7 @@
       "level3": "SAP(应收类款项坏账计提)",
       "shared": "否",
       "scene": "否",
-      "batch": "第二批",
+      "batch": "待定",
       "sheet": "通用"
     },
     {
